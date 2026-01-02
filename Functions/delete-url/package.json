@@ -1,0 +1,7 @@
+{
+    "name": "url-shortener-function",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "URL Shortener Lambda function",
+    "main": "app.js"
+}

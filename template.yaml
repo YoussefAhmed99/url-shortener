@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  url-shortener
+
+  Sample SAM Template for url-shortener
+  
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: nodejs24.x
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTable
+        URLS_TABLE: !Ref UrlsTable
+        JWT_SECRET: dev-secret-key-change-in-production
+
+Resources:
+  # DynamoDB Tables
+  UsersTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: users
+      PrimaryKey:
+        Name: userId
+        Type: String
+
+  UrlsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: urls
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shortCode
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shortCode
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserUrlsIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # Lambda Functions
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/register/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Register:
+          Type: Api
+          Properties:
+            Path: /auth/register
+            Method: post
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/login/
+      Handler: app.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Login:
+          Type: Api
+          Properties:
+            Path: /auth/login
+            Method: post
+
+  CreateUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/create-url/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UrlsTable
+      Events:
+        CreateUrl:
+          Type: Api
+          Properties:
+            Path: /urls
+            Method: post
+
+  GetMyUrlsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get-my-urls/
+      Handler: app.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UrlsTable
+      Events:
+        GetMyUrls:
+          Type: Api
+          Properties:
+            Path: /my-urls
+            Method: get
+
+  GetStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get-stats/
+      Handler: app.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UrlsTable
+      Events:
+        GetStats:
+          Type: Api
+          Properties:
+            Path: /urls/{shortCode}/stats
+            Method: get
+
+  DeleteUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/delete-url/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UrlsTable
+      Events:
+        DeleteUrl:
+          Type: Api
+          Properties:
+            Path: /urls/{shortCode}
+            Method: delete
+
+  RedirectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/redirect/
+      Handler: app.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UrlsTable
+      Events:
+        Redirect:
+          Type: Api
+          Properties:
+            Path: /{shortCode}
+            Method: get
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  
+  UsersTableName:
+    Description: Users DynamoDB table name
+    Value: !Ref UsersTable
+  
+  UrlsTableName:
+    Description: URLs DynamoDB table name
+    Value: !Ref UrlsTable
